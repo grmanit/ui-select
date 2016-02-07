@@ -1,3 +1,7 @@
+Simple fork of [angular-ui/ui-select](https://github.com/angular-ui/ui-select) with some additional fixes:
+
+- Fixed [angular-ui#753](https://github.com/angular-ui/ui-select/issues/753) ([commit](https://github.com/szsolt/ui-select/commit/a274f49122c522bb8621e5f2cb701344c5164e69), [PR](https://github.com/angular-ui/ui-select/pull/1121/files))
+
 # AngularJS ui-select [![Build Status](https://travis-ci.org/angular-ui/ui-select.svg?branch=master)](https://travis-ci.org/angular-ui/ui-select)
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/angular-ui/ui-select?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
