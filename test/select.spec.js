@@ -2149,6 +2149,25 @@ describe('ui-select tests', function() {
       expect(searchEl.length).toEqual(1);
       expect(searchEl[0].id).toEqual('inid');
     });
+
+    it('should be marked invalid when required and empty', function() {
+      scope.selection.selectedMultiple = [];
+      var el = createUiSelectMultiple({required: true});
+
+      expect(el.scope().$select.ngModel.$invalid).toEqual(true);
+      expect(el.scope().$select.ngModel.$error.required).toEqual(true);
+
+      clickItem(el, 'Samantha');
+
+      expect(el.scope().$select.ngModel.$invalid).toEqual(false);
+      expect(el.scope().$select.ngModel.$error.required).toEqual(undefined);
+
+      el.find('.ui-select-match-item').first().find('.ui-select-match-close').click();
+      $timeout.flush();
+
+      expect(el.scope().$select.ngModel.$invalid).toEqual(true);
+      expect(el.scope().$select.ngModel.$error.required).toEqual(true);
+    });
   });
 
   it('should add an id to the search input field', function () {

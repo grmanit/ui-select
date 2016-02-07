@@ -92,6 +92,10 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
         return resultMultiple;
       });
 
+      ngModel.$isEmpty = function () {
+        return !(angular.isArray(ngModel.$$rawModelValue) && ngModel.$$rawModelValue.length > 0);
+      };
+
       // From model --> view
       ngModel.$formatters.unshift(function (inputValue) {
         var data = $select.parserResult.source (scope, { $select : {search:''}}), //Overwrite $search
