@@ -1,6 +1,7 @@
 Simple fork of [angular-ui/ui-select](https://github.com/angular-ui/ui-select) with some additional fixes:
 
 - Fixed [angular-ui#753](https://github.com/angular-ui/ui-select/issues/753) ([commit](https://github.com/szsolt/ui-select/commit/a274f49122c522bb8621e5f2cb701344c5164e69), [PR](https://github.com/angular-ui/ui-select/pull/1121/files))
+- Fixed [angular-ui#974](https://github.com/angular-ui/ui-select/issues/974) ([commit](https://github.com/homerjam/ui-select/commit/637be080c19f1c16e2e2c87fca30dbca3dff9369), [PR](https://github.com/angular-ui/ui-select/pull/1036))
 
 # AngularJS ui-select [![Build Status](https://travis-ci.org/angular-ui/ui-select.svg?branch=master)](https://travis-ci.org/angular-ui/ui-select)
 

@@ -92,6 +92,8 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
         }
 
         move.apply(theList, [droppedItemIndex, newIndex]);
+        
+        scope.$parent.$selectMultiple.updateModel();
 
         scope.$apply(function() {
           scope.$emit('uiSelectSort:change', {
