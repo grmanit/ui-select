@@ -1,7 +1,7 @@
 /*!
  * ui-select
  * http://github.com/angular-ui/ui-select
- * Version: 0.14.2 - 2016-02-07T21:04:37.178Z
+ * Version: 0.14.2 - 2016-02-13T22:09:42.977Z
  * License: MIT
  */
 
@@ -184,6 +184,9 @@ uis.directive('uiSelectChoices',
     replace: true,
     transclude: true,
     templateUrl: function(tElement) {
+      // Needed so the uiSelect can detect the transcluded content
+      tElement.addClass('ui-select-choices');
+
       // Gets theme attribute from parent (ui-select)
       var theme = tElement.parent().attr('theme') || uiSelectConfig.theme;
       return theme + '/choices.tpl.html';
@@ -1207,6 +1210,9 @@ uis.directive('uiSelectMatch', ['uiSelectConfig', function(uiSelectConfig) {
     replace: true,
     transclude: true,
     templateUrl: function(tElement) {
+      // Needed so the uiSelect can detect the transcluded content
+      tElement.addClass('ui-select-match');
+
       // Gets theme attribute from parent (ui-select)
       var theme = tElement.parent().attr('theme') || uiSelectConfig.theme;
       var multi = tElement.parent().attr('multiple');
