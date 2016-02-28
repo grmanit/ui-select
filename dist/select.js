@@ -1,7 +1,7 @@
 /*!
  * ui-select
  * http://github.com/angular-ui/ui-select
- * Version: 0.14.2 - 2016-02-13T22:09:42.977Z
+ * Version: 0.14.8 - 2016-02-18T22:01:43.792Z
  * License: MIT
  */
 
@@ -175,8 +175,8 @@ var uis = angular.module('ui.select', [])
 }]);
 
 uis.directive('uiSelectChoices',
-  ['uiSelectConfig', 'uisRepeatParser', 'uiSelectMinErr', '$compile',
-  function(uiSelectConfig, RepeatParser, uiSelectMinErr, $compile) {
+  ['uiSelectConfig', 'uisRepeatParser', 'uiSelectMinErr', '$compile', '$window',
+  function(uiSelectConfig, RepeatParser, uiSelectMinErr, $compile, $window) {
 
   return {
     restrict: 'EA',
@@ -221,12 +221,19 @@ uis.directive('uiSelectChoices',
         }
 
         choices.attr('ng-repeat', $select.parserResult.repeatExpression(groupByExp))
-            .attr('ng-if', '$select.open') //Prevent unnecessary watches when dropdown is closed
-            .attr('ng-click', '$select.select(' + $select.parserResult.itemName + ',false,$event)');
+            .attr('ng-if', '$select.open'); //Prevent unnecessary watches when dropdown is closed
+        if ($window.document.addEventListener) {  //crude way to exclude IE8, specifically, which also cannot capture events
+          choices.attr('ng-mouseenter', '$select.setActiveItem('+$select.parserResult.itemName +')')
+              .attr('ng-click', '$select.select(' + $select.parserResult.itemName + ',false,$event)');
+        }
 
         var rowsInner = element.querySelectorAll('.ui-select-choices-row-inner');
         if (rowsInner.length !== 1) throw uiSelectMinErr('rows', "Expected 1 .ui-select-choices-row-inner but got '{0}'.", rowsInner.length);
         rowsInner.attr('uis-transclude-append', ''); //Adding uisTranscludeAppend directive to row element after choices element has ngRepeat
+        if (!$window.document.addEventListener) {  //crude way to target IE8, specifically, which also cannot capture events - so event bindings must be here
+          rowsInner.attr('ng-mouseenter', '$select.setActiveItem('+$select.parserResult.itemName +')')
+              .attr('ng-click', '$select.select(' + $select.parserResult.itemName + ',false,$event)');
+        }
 
         $compile(element, transcludeFn)(scope); //Passing current transcludeFn to be able to append elements correctly from uisTranscludeAppend
 
@@ -268,6 +275,7 @@ uis.controller('uiSelectCtrl',
   ctrl.searchEnabled = uiSelectConfig.searchEnabled;
   ctrl.sortable = uiSelectConfig.sortable;
   ctrl.refreshDelay = uiSelectConfig.refreshDelay;
+  ctrl.paste = uiSelectConfig.paste;
 
   ctrl.removeSelected = false; //If selected item(s) should be removed from dropdown list
   ctrl.closeOnSelect = true; //Initialized inside uiSelect directive link function
@@ -312,13 +320,31 @@ uis.controller('uiSelectCtrl',
     return angular.isUndefined(ctrl.selected) || ctrl.selected === null || ctrl.selected === '' || (ctrl.multiple && ctrl.selected.length === 0);
   };
 
+  function _findIndex(collection, predicate, thisArg){
+    if (collection.findIndex){
+      return collection.findIndex(predicate, thisArg);
+    } else {
+      var list = Object(collection);
+      var length = list.length >>> 0;
+      var value;
+
+      for (var i = 0; i < length; i++) {
+        value = list[i];
+        if (predicate.call(thisArg, value, i, list)) {
+          return i;
+        }
+      }
+      return -1;
+    }
+  }
+
   // Most of the time the user does not want to empty the search input when in typeahead mode
   function _resetSearchInput() {
     if (ctrl.resetSearchInput || (ctrl.resetSearchInput === undefined && uiSelectConfig.resetSearchInput)) {
       ctrl.search = EMPTY_SEARCH;
       //reset activeIndex
       if (ctrl.selected && ctrl.items.length && !ctrl.multiple) {
-        ctrl.activeIndex = ctrl.items.findIndex(function(item){
+        ctrl.activeIndex = _findIndex(ctrl.items, function(item){
           return angular.equals(this, item);
         }, ctrl.selected);
       }
@@ -574,7 +600,7 @@ uis.controller('uiSelectCtrl',
               // create new item on the fly if we don't already have one;
               // use tagging function if we have one
               if ( ctrl.tagging.fct !== undefined && typeof item === 'string' ) {
-                item = ctrl.tagging.fct(ctrl.search);
+                item = ctrl.tagging.fct(item);
                 if (!item) return;
               // if item type is 'string', apply the tagging label
               } else if ( typeof item === 'string' ) {
@@ -724,6 +750,11 @@ uis.controller('uiSelectCtrl',
 
     var key = e.which;
 
+    if (~[KEY.ENTER,KEY.ESC].indexOf(key)){
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     // if(~[KEY.ESC,KEY.TAB].indexOf(key)){
     //   //TODO: SEGURO?
     //   ctrl.close();
@@ -770,20 +801,38 @@ uis.controller('uiSelectCtrl',
 
   });
 
-  // If tagging try to split by tokens and add items
   ctrl.searchInput.on('paste', function (e) {
-    var data = e.originalEvent.clipboardData.getData('text/plain');
-    if (data && data.length > 0 && ctrl.taggingTokens.isActivated) {
-      // split by first token only
-      var separator = KEY.toSeparator(ctrl.taggingTokens.tokens[0]);
-      var items = data.split(separator); 
-      if (items && items.length > 0) {
+    var data;
+
+    if (window.clipboardData && window.clipboardData.getData) { // IE
+      data = window.clipboardData.getData('Text');
+    } else {
+      data = (e.originalEvent || e).clipboardData.getData('text/plain');
+    }
+
+    // Prepend the current input field text to the paste buffer.
+    data = ctrl.search + data;
+
+    if (data && data.length > 0) {
+      // If tagging try to split by tokens and add items
+      if (ctrl.taggingTokens.isActivated) {
+        var separator = KEY.toSeparator(ctrl.taggingTokens.tokens[0]);
+        var items = data.split(separator || ctrl.taggingTokens.tokens[0]); // split by first token only
+        if (items && items.length > 0) {
         var oldsearch = ctrl.search;
-        angular.forEach(items, function (item) {
-          ctrl.search = item;
-          ctrl.select(item, true);
-        });
-        ctrl.search = oldsearch;
+          angular.forEach(items, function (item) {
+            var newItem = ctrl.tagging.fct ? ctrl.tagging.fct(item) : item;
+            if (newItem) {
+              ctrl.select(newItem, true);
+            }
+          });
+          ctrl.search = oldsearch || EMPTY_SEARCH;
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      } else if (ctrl.paste) {
+        ctrl.paste(data);
+        ctrl.search = EMPTY_SEARCH;
         e.preventDefault();
         e.stopPropagation();
       }
@@ -828,30 +877,6 @@ uis.controller('uiSelectCtrl',
 
 }]);
 
-// Array findIndex polyfill (source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex#Polyfill)
-if (!Array.prototype.findIndex) {
-  Array.prototype.findIndex = function(predicate) {
-    if (this === null) {
-      throw new TypeError('Array.prototype.findIndex called on null or undefined');
-    }
-    if (typeof predicate !== 'function') {
-      throw new TypeError('predicate must be a function');
-    }
-    var list = Object(this);
-    var length = list.length >>> 0;
-    var thisArg = arguments[1];
-    var value;
-
-    for (var i = 0; i < length; i++) {
-      value = list[i];
-      if (predicate.call(thisArg, value, i, list)) {
-        return i;
-      }
-    }
-    return -1;
-  };
-}
-
 uis.directive('uiSelect',
   ['$document', 'uiSelectConfig', 'uiSelectMinErr', 'uisOffset', '$compile', '$parse', '$timeout',
   function($document, uiSelectConfig, uiSelectMinErr, uisOffset, $compile, $parse, $timeout) {
@@ -870,6 +895,14 @@ uis.directive('uiSelect',
     controller: 'uiSelectCtrl',
     controllerAs: '$select',
     compile: function(tElement, tAttrs) {
+
+      // Allow setting ngClass on uiSelect
+      var match = /{(.*)}\s*{(.*)}/.exec(tAttrs.ngClass);
+      if(match) {
+        var combined = '{'+ match[1] +', '+ match[2] +'}';
+        tAttrs.ngClass = combined;
+        tElement.attr('ng-class', combined);
+      }
 
       //Multiple or Single depending if multiple attribute presence
       if (angular.isDefined(tAttrs.multiple))
@@ -937,6 +970,10 @@ uis.directive('uiSelect',
           // $eval() is needed otherwise we get a string instead of a boolean
           var resetSearchInput = scope.$eval(attrs.resetSearchInput);
           $select.resetSearchInput = resetSearchInput !== undefined ? resetSearchInput : true;
+        });
+
+        attrs.$observe('paste', function() {
+          $select.paste = scope.$eval(attrs.paste);
         });
 
         attrs.$observe('tagging', function() {
@@ -1107,6 +1144,9 @@ uis.directive('uiSelect',
           element[0].style.left = '';
           element[0].style.top = '';
           element[0].style.width = originalWidth;
+
+          // Set focus back on to the moved element
+          $select.setFocus();
         }
 
         // Hold on to a reference to the .ui-select-dropdown element for direction support.
@@ -1250,7 +1290,10 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
           $select = $scope.$select,
           ngModel;
 
-      //Wait for link fn to inject it 
+      if (angular.isUndefined($select.selected))
+        $select.selected = [];
+
+      //Wait for link fn to inject it
       $scope.$evalAsync(function(){ ngModel = $scope.ngModel; });
 
       ctrl.activeMatchIndex = -1;
@@ -1262,7 +1305,7 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
 
       ctrl.refreshComponent = function(){
         //Remove already selected items
-        //e.g. When user clicks on a selection, the selected array changes and 
+        //e.g. When user clicks on a selection, the selected array changes and
         //the dropdown should remove that item
         $select.refreshItems();
         $select.sizeSearchInput();
@@ -1350,10 +1393,13 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
             locals[$select.parserResult.itemName] = list[p];
             result = $select.parserResult.modelMapper(scope, locals);
             if($select.parserResult.trackByExp){
-                var matches = /\.(.+)/.exec($select.parserResult.trackByExp);
-                if(matches.length>0 && result[matches[1]] == value[matches[1]]){
-                    resultMultiple.unshift(list[p]);
-                    return true;
+                var propsItemNameMatches = /(\w*)\./.exec($select.parserResult.trackByExp);
+                var matches = /\.([^\s]+)/.exec($select.parserResult.trackByExp);
+                if(propsItemNameMatches && propsItemNameMatches.length > 0 && propsItemNameMatches[1] == $select.parserResult.itemName){
+                  if(matches && matches.length>0 && result[matches[1]] == value[matches[1]]){
+                      resultMultiple.unshift(list[p]);
+                      return true;
+                  }
                 }
             }
             if (angular.equals(result,value)){
@@ -1365,7 +1411,7 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
         };
         if (!inputValue) return resultMultiple; //If ngModel was undefined
         for (var k = inputValue.length - 1; k >= 0; k--) {
-          //Check model array of currently selected items 
+          //Check model array of currently selected items
           if (!checkFnMultiple($select.selected, inputValue[k])){
             //Check model array of all items available
             if (!checkFnMultiple(data, inputValue[k])){
@@ -1376,8 +1422,8 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
         }
         return resultMultiple;
       });
-      
-      //Watch for external model changes 
+
+      //Watch for external model changes
       scope.$watchCollection(function(){ return ngModel.$modelValue; }, function(newValue, oldValue) {
         if (oldValue != newValue){
           ngModel.$modelValue = null; //Force scope model value and ngModel value to be out of sync to re-run formatters
@@ -1777,10 +1823,10 @@ uis.directive('uiSelectSingle', ['$timeout','$compile', function($timeout, $comp
 // Make multiple matches sortable
 uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', function($timeout, uiSelectConfig, uiSelectMinErr) {
   return {
-    require: '^uiSelect',
+    require: '^^uiSelect',
     link: function(scope, element, attrs, $select) {
       if (scope[attrs.uiSelectSort] === null) {
-        throw uiSelectMinErr('sort', "Expected a list to sort");
+        throw uiSelectMinErr('sort', 'Expected a list to sort');
       }
 
       var options = angular.extend({
@@ -1788,26 +1834,26 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
         },
         scope.$eval(attrs.uiSelectSortOptions));
 
-      var axis = options.axis,
-        draggingClassName = 'dragging',
-        droppingClassName = 'dropping',
-        droppingBeforeClassName = 'dropping-before',
-        droppingAfterClassName = 'dropping-after';
+      var axis = options.axis;
+      var draggingClassName = 'dragging';
+      var droppingClassName = 'dropping';
+      var droppingBeforeClassName = 'dropping-before';
+      var droppingAfterClassName = 'dropping-after';
 
       scope.$watch(function(){
         return $select.sortable;
-      }, function(n){
-        if (n) {
+      }, function(newValue){
+        if (newValue) {
           element.attr('draggable', true);
         } else {
           element.removeAttr('draggable');
         }
       });
 
-      element.on('dragstart', function(e) {
+      element.on('dragstart', function(event) {
         element.addClass(draggingClassName);
 
-        (e.dataTransfer || e.originalEvent.dataTransfer).setData('text', scope.$index.toString());
+        (event.dataTransfer || event.originalEvent.dataTransfer).setData('text/plain', scope.$index);
       });
 
       element.on('dragend', function() {
@@ -1819,10 +1865,10 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
         this.splice(to, 0, this.splice(from, 1)[0]);
       };
 
-      var dragOverHandler = function(e) {
-        e.preventDefault();
+      var dragOverHandler = function(event) {
+        event.preventDefault();
 
-        var offset = axis === 'vertical' ? e.offsetY || e.layerY || (e.originalEvent ? e.originalEvent.offsetY : 0) : e.offsetX || e.layerX || (e.originalEvent ? e.originalEvent.offsetX : 0);
+        var offset = axis === 'vertical' ? event.offsetY || event.layerY || (event.originalEvent ? event.originalEvent.offsetY : 0) : event.offsetX || event.layerX || (event.originalEvent ? event.originalEvent.offsetX : 0);
 
         if (offset < (this[axis === 'vertical' ? 'offsetHeight' : 'offsetWidth'] / 2)) {
           element.removeClass(droppingAfterClassName);
@@ -1836,10 +1882,10 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
 
       var dropTimeout;
 
-      var dropHandler = function(e) {
-        e.preventDefault();
+      var dropHandler = function(event) {
+        event.preventDefault();
 
-        var droppedItemIndex = parseInt((e.dataTransfer || e.originalEvent.dataTransfer).getData('text'), 10);
+        var droppedItemIndex = parseInt((event.dataTransfer || event.originalEvent.dataTransfer).getData('text/plain'), 10);
 
         // prevent event firing multiple times in firefox
         $timeout.cancel(dropTimeout);
@@ -1849,9 +1895,9 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
       };
 
       var _dropHandler = function(droppedItemIndex) {
-        var theList = scope.$eval(attrs.uiSelectSort),
-          itemToMove = theList[droppedItemIndex],
-          newIndex = null;
+        var theList = scope.$eval(attrs.uiSelectSort);
+        var itemToMove = theList[droppedItemIndex];
+        var newIndex = null;
 
         if (element.hasClass(droppingBeforeClassName)) {
           if (droppedItemIndex < scope.$index) {
@@ -1898,8 +1944,8 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
         element.on('drop', dropHandler);
       });
 
-      element.on('dragleave', function(e) {
-        if (e.target != element) {
+      element.on('dragleave', function(event) {
+        if (event.target != element) {
           return;
         }
         element.removeClass(droppingClassName);

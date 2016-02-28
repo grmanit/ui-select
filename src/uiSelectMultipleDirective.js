@@ -9,7 +9,10 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
           $select = $scope.$select,
           ngModel;
 
-      //Wait for link fn to inject it 
+      if (angular.isUndefined($select.selected))
+        $select.selected = [];
+
+      //Wait for link fn to inject it
       $scope.$evalAsync(function(){ ngModel = $scope.ngModel; });
 
       ctrl.activeMatchIndex = -1;
@@ -21,7 +24,7 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
 
       ctrl.refreshComponent = function(){
         //Remove already selected items
-        //e.g. When user clicks on a selection, the selected array changes and 
+        //e.g. When user clicks on a selection, the selected array changes and
         //the dropdown should remove that item
         $select.refreshItems();
         $select.sizeSearchInput();
@@ -109,10 +112,13 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
             locals[$select.parserResult.itemName] = list[p];
             result = $select.parserResult.modelMapper(scope, locals);
             if($select.parserResult.trackByExp){
-                var matches = /\.(.+)/.exec($select.parserResult.trackByExp);
-                if(matches.length>0 && result[matches[1]] == value[matches[1]]){
-                    resultMultiple.unshift(list[p]);
-                    return true;
+                var propsItemNameMatches = /(\w*)\./.exec($select.parserResult.trackByExp);
+                var matches = /\.([^\s]+)/.exec($select.parserResult.trackByExp);
+                if(propsItemNameMatches && propsItemNameMatches.length > 0 && propsItemNameMatches[1] == $select.parserResult.itemName){
+                  if(matches && matches.length>0 && result[matches[1]] == value[matches[1]]){
+                      resultMultiple.unshift(list[p]);
+                      return true;
+                  }
                 }
             }
             if (angular.equals(result,value)){
@@ -124,7 +130,7 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
         };
         if (!inputValue) return resultMultiple; //If ngModel was undefined
         for (var k = inputValue.length - 1; k >= 0; k--) {
-          //Check model array of currently selected items 
+          //Check model array of currently selected items
           if (!checkFnMultiple($select.selected, inputValue[k])){
             //Check model array of all items available
             if (!checkFnMultiple(data, inputValue[k])){
@@ -135,8 +141,8 @@ uis.directive('uiSelectMultiple', ['uiSelectMinErr','$timeout', function(uiSelec
         }
         return resultMultiple;
       });
-      
-      //Watch for external model changes 
+
+      //Watch for external model changes
       scope.$watchCollection(function(){ return ngModel.$modelValue; }, function(newValue, oldValue) {
         if (oldValue != newValue){
           ngModel.$modelValue = null; //Force scope model value and ngModel value to be out of sync to re-run formatters
