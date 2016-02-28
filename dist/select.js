@@ -1,7 +1,7 @@
 /*!
  * ui-select
  * http://github.com/angular-ui/ui-select
- * Version: 0.14.8 - 2016-02-18T22:01:43.792Z
+ * Version: 0.14.9 - 2016-02-28T19:00:05.833Z
  * License: MIT
  */
 
@@ -1853,7 +1853,7 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
       element.on('dragstart', function(event) {
         element.addClass(draggingClassName);
 
-        (event.dataTransfer || event.originalEvent.dataTransfer).setData('text/plain', scope.$index);
+        (event.dataTransfer || event.originalEvent.dataTransfer).setData('text', scope.$index.toString());
       });
 
       element.on('dragend', function() {
@@ -1885,7 +1885,7 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
       var dropHandler = function(event) {
         event.preventDefault();
 
-        var droppedItemIndex = parseInt((event.dataTransfer || event.originalEvent.dataTransfer).getData('text/plain'), 10);
+        var droppedItemIndex = parseInt((event.dataTransfer || event.originalEvent.dataTransfer).getData('text'), 10);
 
         // prevent event firing multiple times in firefox
         $timeout.cancel(dropTimeout);
@@ -1914,7 +1914,7 @@ uis.directive('uiSelectSort', ['$timeout', 'uiSelectConfig', 'uiSelectMinErr', f
         }
 
         move.apply(theList, [droppedItemIndex, newIndex]);
-        
+
         scope.$parent.$selectMultiple.updateModel();
 
         scope.$apply(function() {
